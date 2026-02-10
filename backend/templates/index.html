@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sandboxed Program Runner</title>
+    <style>
+        body {
+            background: #0f0f0f;
+            color: #f5f5f5;
+            font-family: monospace;
+        }
+        textarea {
+            width: 100%;
+            background: black;
+            color: #00ffcc;
+            border: 1px solid #444;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px;
+            background: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        pre {
+            background: black;
+            color: white;
+            padding: 10px;
+            min-height: 120px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Sandboxed Program Runner</h1>
+
+<h3>Code Editor</h3>
+<textarea id="code" rows="10">
+#include <stdio.h>
+int main() {
+    int m;
+    printf("hello\n");
+    fflush(stdout);
+    scanf("%d",&m);
+    printf("%d\n",m);
+    fflush(stdout);
+    return 0;
+}
+</textarea>
+
+<h3>Input (stdin)</h3>
+<textarea id="stdin" rows="2" placeholder="Type input and press Enter"></textarea>
+
+<button onclick="runCode()">Compile & Run</button>
+
+<h3>Output</h3>
+<pre id="output"></pre>
+
+<script>
+let polling = false;
+
+async function runCode() {
+    document.getElementById("output").innerText = "";
+
+    const code = document.getElementById("code").value;
+
+    await fetch("/run", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({code})
+    });
+
+    polling = true;
+    pollOutput();
+}
+
+async function pollOutput() {
+    if (!polling) return;
+
+    const res = await fetch("/stdout");
+    const data = await res.json();
+
+    if (data.output) {
+        document.getElementById("output").innerText += data.output;
+    }
+
+    if (data.status === "FINISHED") {
+        polling = false;
+        return;
+    }
+
+    setTimeout(pollOutput, 300);
+}
+
+document.getElementById("stdin").addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        const val = e.target.value.trim();
+        e.target.value = "";
+
+        await fetch("/stdin", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({input: val})
+        });
+    }
+});
+</script>
+
+</body>
+</html>
+
