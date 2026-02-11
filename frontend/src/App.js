@@ -310,9 +310,9 @@ int main() {
                     {verdict}
                   </div>
                   <div className="verdict-icon">
-                    {(verdict === 'MALICIOUS' || verdict === 'BLOCKED BY SECCOMP') && '⚠️'}
-                    {verdict === 'SUSPICIOUS' && '⚡'}
-                    {(verdict === 'SAFE' || verdict === 'EXECUTION COMPLETED') && '✓'}
+                    {(verdict === 'MALICIOUS' || verdict === 'BLOCKED BY SECCOMP') && ' '}
+                    {verdict === 'SUSPICIOUS' && ' '}
+                    {(verdict === 'SAFE' || verdict === 'EXECUTION COMPLETED') && ' '}
                   </div>
                 </div>
               )}

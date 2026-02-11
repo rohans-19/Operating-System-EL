@@ -23,7 +23,8 @@ void monitor(pid_t pid) {
         
         if (WIFEXITED(status)) {
             printf("\n[RISK SCORE] %d\n",get_risk_score());
-            if (get_risk_score() >94)
+            if (get_risk_score() >94)               
+            
                 printf("[VERDICT] SUSPICIOUS\n");
             else
                 printf("[VERDICT] SAFE\n");
@@ -74,7 +75,7 @@ void monitor(pid_t pid) {
                 add_risk(100);
                 printf("\n[SECCOMP] Forbidden syscall trapped\n");                
                 printf("\n[RISK SCORE] %d\n", get_risk_score());
-                printf("[VERDICT] SUSPICIOUS\n");
+                printf("[VERDICT] MALICIOUS\n");
                 ptrace(PTRACE_KILL, pid, 0, 0);
                 break;
             }
