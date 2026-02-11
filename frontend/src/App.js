@@ -6,24 +6,37 @@ function App() {
 #include <stdio.h>
 
 int main() {
-    int n;
-    while(1){
-    }
+    printf("Hello World\\n");
+    return 0;
 }
 `);
+  // output is now used as a temporary buffer or raw stream if needed, but we focus on userOutput/systemLogs
   const [output, setOutput] = useState('');
+  const [userOutput, setUserOutput] = useState('');
+  const [systemLogs, setSystemLogs] = useState('');
+
   const [input, setInput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [verdict, setVerdict] = useState('');
   const [riskScore, setRiskScore] = useState(null);
   const [seccompInfo, setSeccompInfo] = useState([]);
-  const outputRef = useRef(null);
 
+  const userOutputRef = useRef(null);
+  const systemLogsRef = useRef(null);
+
+  // Auto-scroll for user output
   useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    if (userOutputRef.current) {
+      userOutputRef.current.scrollTop = userOutputRef.current.scrollHeight;
     }
-  }, [output]);
+  }, [userOutput]);
+
+  // Auto-scroll for system logs
+  useEffect(() => {
+    if (systemLogsRef.current) {
+      systemLogsRef.current.scrollTop = systemLogsRef.current.scrollHeight;
+    }
+  }, [systemLogs]);
 
   useEffect(() => {
     let interval;
@@ -86,30 +99,54 @@ int main() {
       const response = await fetch('http://localhost:5000/stdout');
       const data = await response.json();
 
-      setOutput(prev => prev + data.output);
+      let currentDetectedVerdict = '';
 
-      const { syscalls, detectedVerdict, detectedRiskScore } = parseSeccompAndVerdict(data.output);
+      if (data.output) {
+        setOutput(prev => prev + data.output);
 
-      if (syscalls.length > 0) {
-        setSeccompInfo(prev => {
-          const newSyscalls = syscalls.filter(
-            sc => !prev.some(p => p.number === sc.number && p.name === sc.name)
-          );
-          return [...prev, ...newSyscalls];
+        // Split output into user output and system logs
+        const lines = data.output.split('\n');
+        let newUserOutput = '';
+        let newSystemLogs = '';
+
+        lines.forEach(line => {
+          if (!line) return;
+
+          if (line.trim().startsWith('[')) {
+            newSystemLogs += line + '\n';
+          } else {
+            newUserOutput += line + '\n';
+          }
         });
-      }
 
-      if (detectedVerdict) {
-        setVerdict(detectedVerdict);
-      }
+        setUserOutput(prev => prev + newUserOutput);
+        setSystemLogs(prev => prev + newSystemLogs);
 
-      if (detectedRiskScore !== null) {
-        setRiskScore(detectedRiskScore);
+        const { syscalls, detectedVerdict, detectedRiskScore } = parseSeccompAndVerdict(newSystemLogs);
+
+        currentDetectedVerdict = detectedVerdict;
+
+        if (syscalls.length > 0) {
+          setSeccompInfo(prev => {
+            const newSyscalls = syscalls.filter(
+              sc => !prev.some(p => p.number === sc.number && p.name === sc.name)
+            );
+            return [...prev, ...newSyscalls];
+          });
+        }
+
+        if (detectedVerdict) {
+          setVerdict(detectedVerdict);
+        }
+
+        if (detectedRiskScore !== null) {
+          setRiskScore(detectedRiskScore);
+        }
       }
 
       if (data.status === 'FINISHED') {
         setIsRunning(false);
-        if (!detectedVerdict && !verdict) {
+        if (!currentDetectedVerdict && !verdict) {
           setVerdict('EXECUTION COMPLETED');
         }
       }
@@ -120,6 +157,8 @@ int main() {
 
   const runCode = async () => {
     setOutput('');
+    setUserOutput('');
+    setSystemLogs('');
     setVerdict('');
     setRiskScore(null);
     setSeccompInfo([]);
@@ -137,12 +176,12 @@ int main() {
       const data = await response.json();
 
       if (data.status === 'COMPILATION ERROR') {
-        setOutput(data.output);
+        setSystemLogs(data.output);
         setVerdict('COMPILATION ERROR');
         setIsRunning(false);
       }
     } catch (error) {
-      setOutput('Error: ' + error.message);
+      setSystemLogs('Error: ' + error.message);
       setIsRunning(false);
     }
   };
@@ -203,8 +242,8 @@ int main() {
             onChange={(e) => setCode(e.target.value)}
             spellCheck="false"
           />
-          <button 
-            className="compile-btn" 
+          <button
+            className="compile-btn"
             onClick={runCode}
             disabled={isRunning}
           >
@@ -213,11 +252,36 @@ int main() {
         </div>
 
         <div className="output-section">
+
           <div className="section-header">
-            <h2>Output</h2>
+            <h2>Program Output</h2>
+          </div>
+          <div className="output-box user-output-box" ref={userOutputRef}>
+            <pre>{userOutput || 'Program output will appear here...'}</pre>
           </div>
 
-          {/* Risk Score and Verdict Blocks */}
+          <div className="input-section" style={{ marginTop: '20px', marginBottom: '20px' }}>
+            <h3>Input (stdin)</h3>
+            <div className="input-group">
+              <input
+                type="text"
+                className="input-field"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Type input and press Enter"
+                disabled={!isRunning}
+              />
+              <button
+                className="send-btn"
+                onClick={sendInput}
+                disabled={!isRunning}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+
           {(riskScore !== null || verdict) && (
             <div className="analysis-blocks">
               {riskScore !== null && (
@@ -228,9 +292,9 @@ int main() {
                     <span className="score-max"></span>
                   </div>
                   <div className="risk-bar">
-                    <div 
-                      className="risk-bar-fill" 
-                      style={{ 
+                    <div
+                      className="risk-bar-fill"
+                      style={{
                         width: `${riskScore}%`,
                         background: getRiskColor(riskScore)
                       }}
@@ -255,8 +319,12 @@ int main() {
             </div>
           )}
 
-          <div className="output-box" ref={outputRef}>
-            <pre>{output || 'Output will appear here...'}</pre>
+          <div className="section-header" style={{ marginTop: '20px' }}>
+            <h2>System Logs</h2>
+          </div>
+
+          <div className="output-box system-logs-box" ref={systemLogsRef} style={{ marginTop: '0px' }}>
+            <pre>{systemLogs || 'System logs will appear here...'}</pre>
           </div>
 
           {seccompInfo.length > 0 && (
@@ -271,28 +339,6 @@ int main() {
               </div>
             </div>
           )}
-
-          <div className="input-section">
-            <h3>Input (stdin)</h3>
-            <div className="input-group">
-              <input
-                type="text"
-                className="input-field"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type input and press Enter"
-                disabled={!isRunning}
-              />
-              <button 
-                className="send-btn" 
-                onClick={sendInput}
-                disabled={!isRunning}
-              >
-                Send
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
