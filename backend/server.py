@@ -36,7 +36,7 @@ def run_code():
         f.write(code)
     
     compile_proc = subprocess.run(
-        ["gcc", CODE_FILE, "-o", BIN_FILE],
+        ["gcc", CODE_FILE, "-o", BIN_FILE, "-lm"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
